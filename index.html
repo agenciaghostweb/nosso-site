@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus | Anki Web SPA</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#0a0a0f',
+                            panel: '#13131f',
+                            purple: '#b026ff',
+                            purpleGlow: 'rgba(176, 38, 255, 0.4)',
+                            cyan: '#00f3ff',
+                            cyanGlow: 'rgba(0, 243, 255, 0.4)',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body { background-color: #0a0a0f; color: #e2e8f0; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        
+        /* Neon Glow Effects */
+        .neon-border-purple { border: 1px solid #b026ff; box-shadow: 0 0 10px rgba(176,38,255,0.2); }
+        .neon-text-cyan { color: #00f3ff; text-shadow: 0 0 8px rgba(0,243,255,0.5); }
+        .neon-text-purple { color: #b026ff; text-shadow: 0 0 8px rgba(176,38,255,0.5); }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0a0a0f; }
+        ::-webkit-scrollbar-thumb { background: #3f3f5a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #b026ff; }
+
+        /* Rich Text Editor */
+        [contenteditable]:empty:before { content: attr(placeholder); color: #64748b; pointer-events: none; display: block; }
+        .editor-box { min-height: 100px; background: #0a0a0f; border: 1px solid #3f3f5a; border-radius: 0.5rem; padding: 1rem; outline: none; transition: border-color 0.3s; }
+        .editor-box:focus { border-color: #00f3ff; box-shadow: 0 0 10px rgba(0,243,255,0.2); }
+
+        /* Flashcard Flip Animation */
+        .perspective { perspective: 1000px; }
+        .preserve-3d { transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+
+    <!-- Navbar (Hidden initially) -->
+    <nav id="navbar" class="hidden border-b border-cyber-purple/30 bg-cyber-panel/80 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="brain-circuit" class="w-8 h-8 text-cyber-cyan"></i>
+                    <span class="font-bold text-xl tracking-wider neon-text-cyan font-mono">NEXUS</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="app.navigate('dashboard')" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-white/5"><i data-lucide="layout-dashboard" class="w-5 h-5 inline mr-1"></i> Dashboard</button>
+                    <button onclick="app.navigate('leaderboard')" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-white/5"><i data-lucide="trophy" class="w-5 h-5 inline mr-1"></i> Ranking</button>
+                    <button id="nav-admin-btn" onclick="app.navigate('admin')" class="hidden text-cyber-purple hover:text-white px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-cyber-purple/20"><i data-lucide="database" class="w-5 h-5 inline mr-1"></i> Admin</button>
+                    <button onclick="app.logout()" class="text-red-400 hover:text-red-300 px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-red-500/10"><i data-lucide="log-out" class="w-5 h-5 inline mr-1"></i> Sair</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- App Container (Dynamic Views) -->
+    <main id="app-container" class="flex-grow flex flex-col relative w-full h-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <!-- View: Auth (Login/Register) -->
+        <section id="view-auth" class="flex-grow flex items-center justify-center">
+            <div class="w-full max-w-md bg-cyber-panel p-8 rounded-2xl neon-border-purple shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyber-purple to-cyber-cyan"></div>
+                
+                <div class="text-center mb-8">
+                    <i data-lucide="brain-circuit" class="w-12 h-12 text-cyber-cyan mx-auto mb-4"></i>
+                    <h2 class="text-3xl font-bold text-white tracking-wide">NEXUS</h2>
+                    <p class="text-gray-400 text-sm mt-2">Sistema de Repetição Espaçada Avançado</p>
+                </div>
+
+                <form id="auth-form" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">E-mail Institucional ou Admin</label>
+                        <input type="email" id="auth-email" required class="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-700 rounded-lg focus:ring-2 focus:ring-cyber-cyan focus:border-transparent text-white transition-all outline-none" placeholder="aluno@anhanguera.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">Senha</label>
+                        <input type="password" id="auth-password" required class="w-full px-4 py-3 bg-[#0a0a0f] border border-gray-700 rounded-lg focus:ring-2 focus:ring-cyber-cyan focus:border-transparent text-white transition-all outline-none" placeholder="••••••••">
+                    </div>
+                    
+                    <div class="flex gap-4 pt-2">
+                        <button type="button" onclick="app.handleAuth('login')" class="flex-1 bg-cyber-purple/20 border border-cyber-purple hover:bg-cyber-purple hover:text-white text-cyber-purple font-semibold py-3 px-4 rounded-lg transition-all duration-300 shadow-[0_0_15px_rgba(176,38,255,0.3)] hover:shadow-[0_0_25px_rgba(176,38,255,0.6)]">
+                            Entrar
+                        </button>
+                        <button type="button" onclick="app.handleAuth('register')" class="flex-1 bg-transparent border border-gray-600 hover:border-white text-gray-300 hover:text-white font-semibold py-3 px-4 rounded-lg transition-all">
+                            Criar Conta
+                        </button>
+                    </div>
+                    <p id="auth-error" class="text-red-400 text-sm text-center hidden"></p>
+                </form>
+            </div>
+        </section>
+
+        <!-- View: Dashboard (Selection) -->
+        <section id="view-dashboard" class="hidden flex-grow flex-col">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-white">Painel de <span class="neon-text-cyan">Estudos</span></h1>
+                <p class="text-gray-400 mt-2">Selecione uma disciplina para iniciar a sessão.</p>
+            </header>
+            
+            <!-- User Stats Summary -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div class="bg-cyber-panel p-4 rounded-xl border border-gray-800 flex flex-col items-center justify-center">
+                    <i data-lucide="flame" class="w-6 h-6 text-orange-500 mb-2"></i>
+                    <span id="stat-streak" class="text-2xl font-bold text-white">0</span>
+                    <span class="text-xs text-gray-400 uppercase tracking-wider">Dias Seguidos</span>
+                </div>
+                <div class="bg-cyber-panel p-4 rounded-xl border border-gray-800 flex flex-col items-center justify-center">
+                    <i data-lucide="layers" class="w-6 h-6 text-cyber-purple mb-2"></i>
+                    <span id="stat-cards" class="text-2xl font-bold text-white">0</span>
+                    <span class="text-xs text-gray-400 uppercase tracking-wider">Cards Vistos</span>
+                </div>
+                <div class="bg-cyber-panel p-4 rounded-xl border border-gray-800 flex flex-col items-center justify-center">
+                    <i data-lucide="target" class="w-6 h-6 text-cyber-cyan mb-2"></i>
+                    <span id="stat-retention" class="text-2xl font-bold text-white">0%</span>
+                    <span class="text-xs text-gray-400 uppercase tracking-wider">Retenção</span>
+                </div>
+                <div class="bg-cyber-panel p-4 rounded-xl border border-gray-800 flex flex-col items-center justify-center">
+                    <i data-lucide="clock" class="w-6 h-6 text-green-400 mb-2"></i>
+                    <span id="stat-time" class="text-2xl font-bold text-white">0h</span>
+                    <span class="text-xs text-gray-400 uppercase tracking-wider">Tempo Total</span>
+                </div>
+            </div>
+
+            <!-- Subject List -->
+            <div id="subject-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Populated by JS -->
+                <div class="text-gray-500 italic flex items-center gap-2"><i data-lucide="loader" class="animate-spin w-4 h-4"></i> Carregando disciplinas...</div>
+            </div>
+        </section>
+
+        <!-- View: Study (The Table) -->
+        <section id="view-study" class="hidden flex-grow flex-col max-w-3xl mx-auto w-full">
+            <!-- Header Info -->
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <button onclick="app.navigate('dashboard')" class="text-gray-400 hover:text-white text-sm mb-1 flex items-center transition-colors"><i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Voltar</button>
+                    <div id="study-breadcrumbs" class="text-xs text-cyber-cyan font-mono tracking-wide uppercase">Materia > Unidade > Tópico</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm font-bold text-white bg-cyber-panel px-3 py-1 rounded-full border border-gray-700 flex items-center gap-2">
+                        <i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i>
+                        Combo: <span id="study-combo" class="text-yellow-400">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="w-full bg-gray-800 rounded-full h-1.5 mb-2">
+                <div id="study-progress-bar" class="bg-gradient-to-r from-cyber-purple to-cyber-cyan h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div class="text-right text-xs text-gray-500 font-mono mb-8"><span id="study-progress-text">0/0</span> Cards</div>
+
+            <!-- The Card -->
+            <div class="perspective flex-grow flex flex-col relative w-full h-[400px]">
+                <div id="flashcard-container" class="preserve-3d relative w-full h-full flex-grow">
+                    <!-- Front -->
+                    <div class="absolute w-full h-full backface-hidden bg-cyber-panel border border-gray-700 rounded-2xl p-8 flex flex-col shadow-xl">
+                        <div class="text-gray-500 text-xs uppercase tracking-widest mb-4 border-b border-gray-800 pb-2">Pergunta</div>
+                        <div id="card-front" class="flex-grow flex items-center justify-center text-xl sm:text-2xl text-center text-white font-medium overflow-y-auto prose prose-invert">
+                            <!-- Question Content -->
+                        </div>
+                    </div>
+                    
+                    <!-- Back -->
+                    <div class="absolute w-full h-full backface-hidden rotate-y-180 bg-cyber-panel border border-cyber-purple/50 rounded-2xl p-8 flex flex-col shadow-[0_0_30px_rgba(176,38,255,0.15)]">
+                        <div class="text-cyber-purple text-xs uppercase tracking-widest mb-4 border-b border-cyber-purple/30 pb-2">Resposta</div>
+                        <div id="card-back" class="flex-grow flex items-center justify-center text-lg sm:text-xl text-center text-gray-200 overflow-y-auto prose prose-invert">
+                            <!-- Answer Content -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="mt-8 flex justify-center w-full min-h-[60px]">
+                <button id="btn-reveal" onclick="app.study.revealCard()" class="w-full max-w-md bg-cyber-panel border border-gray-600 hover:border-cyber-cyan text-white font-bold py-4 px-8 rounded-xl shadow-lg transition-all hover:shadow-[0_0_20px_rgba(0,243,255,0.3)] flex items-center justify-center gap-2">
+                    <i data-lucide="eye" class="w-5 h-5"></i> Revelar Resposta
+                </button>
+
+                <div id="study-actions" class="hidden w-full grid grid-cols-4 gap-2 sm:gap-4">
+                    <button onclick="app.study.scoreCard(0)" class="flex flex-col items-center justify-center py-3 px-2 bg-red-500/10 border border-red-500/50 hover:bg-red-500/20 text-red-400 rounded-xl transition-colors">
+                        <span class="font-bold text-sm sm:text-base">Errei</span>
+                        <span class="text-[10px] text-gray-500 mt-1">&lt; 1m</span>
+                    </button>
+                    <button onclick="app.study.scoreCard(1)" class="flex flex-col items-center justify-center py-3 px-2 bg-orange-500/10 border border-orange-500/50 hover:bg-orange-500/20 text-orange-400 rounded-xl transition-colors">
+                        <span class="font-bold text-sm sm:text-base">Difícil</span>
+                        <span id="time-hard" class="text-[10px] text-gray-500 mt-1">--</span>
+                    </button>
+                    <button onclick="app.study.scoreCard(2)" class="flex flex-col items-center justify-center py-3 px-2 bg-green-500/10 border border-green-500/50 hover:bg-green-500/20 text-green-400 rounded-xl transition-colors shadow-[0_0_15px_rgba(34,197,94,0.1)]">
+                        <span class="font-bold text-sm sm:text-base">Bom</span>
+                        <span id="time-good" class="text-[10px] text-gray-500 mt-1">--</span>
+                    </button>
+                    <button onclick="app.study.scoreCard(3)" class="flex flex-col items-center justify-center py-3 px-2 bg-cyber-cyan/10 border border-cyber-cyan/50 hover:bg-cyber-cyan/20 text-cyber-cyan rounded-xl transition-colors">
+                        <span class="font-bold text-sm sm:text-base">Fácil</span>
+                        <span id="time-easy" class="text-[10px] text-gray-500 mt-1">--</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- End of Deck message -->
+            <div id="study-finished" class="hidden flex-col items-center justify-center h-full text-center mt-12">
+                <i data-lucide="party-popper" class="w-16 h-16 text-cyber-purple mb-4"></i>
+                <h2 class="text-2xl font-bold text-white mb-2">Sessão Concluída!</h2>
+                <p class="text-gray-400 mb-6">Você revisou todos os cards programados para agora.</p>
+                <button onclick="app.navigate('dashboard')" class="bg-cyber-panel border border-cyber-cyan text-cyber-cyan px-6 py-2 rounded-lg hover:bg-cyber-cyan hover:text-bg-cyber-bg transition-colors">Voltar ao Painel</button>
+            </div>
+        </section>
+
+        <!-- View: Admin (CRUD) -->
+        <section id="view-admin" class="hidden flex-grow flex-col">
+            <header class="mb-8 border-b border-gray-800 pb-4">
+                <h1 class="text-3xl font-bold text-white"><i data-lucide="database" class="inline w-8 h-8 text-cyber-purple mr-2"></i>Nexus <span class="text-cyber-purple">Admin</span></h1>
+                <p class="text-gray-400 mt-1 text-sm">Gerenciamento Central de Flashcards (Conteúdo Estático)</p>
+            </header>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Creator Form -->
+                <div class="lg:col-span-2 space-y-6 bg-cyber-panel p-6 rounded-xl border border-gray-800">
+                    <h2 class="text-xl font-semibold text-white mb-4">Criador de Card</h2>
+                    
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Matéria</label>
+                            <input type="text" id="admin-subject" placeholder="Ex: Sist. Operacionais" class="w-full bg-[#0a0a0f] border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-cyber-cyan outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Unidade</label>
+                            <input type="text" id="admin-unit" placeholder="Ex: Unidade 1" class="w-full bg-[#0a0a0f] border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-cyber-cyan outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Tópico</label>
+                            <input type="text" id="admin-topic" placeholder="Ex: Escalonamento" class="w-full bg-[#0a0a0f] border border-gray-700 rounded px-3 py-2 text-sm text-white focus:border-cyber-cyan outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Frente (Pergunta)</label>
+                        <div id="admin-front" contenteditable="true" placeholder="Digite a pergunta aqui..." class="editor-box"></div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Verso (Resposta) - <span class="text-cyber-purple">Cole como texto puro (Ctrl+Shift+V) se copiar da web.</span></label>
+                        <div id="admin-back" contenteditable="true" placeholder="Digite a resposta aqui..." class="editor-box"></div>
+                    </div>
+
+                    <button onclick="app.admin.saveCard()" class="w-full bg-cyber-purple text-white font-bold py-3 rounded-lg hover:bg-purple-600 transition-colors flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(176,38,255,0.4)]">
+                        <i data-lucide="save" class="w-5 h-5"></i> Salvar Flashcard Global
+                    </button>
+                    <p id="admin-msg" class="text-sm text-green-400 text-center hidden">Card salvo com sucesso!</p>
+                </div>
+
+                <!-- Database Overview -->
+                <div class="bg-cyber-panel p-6 rounded-xl border border-gray-800 flex flex-col h-[600px]">
+                    <h2 class="text-xl font-semibold text-white mb-4">Banco de Dados</h2>
+                    <div class="flex gap-2 mb-4">
+                        <button class="flex-1 bg-gray-800 text-xs py-2 rounded hover:bg-gray-700 text-white"><i data-lucide="download" class="inline w-3 h-3 mr-1"></i>Exportar JSON</button>
+                        <button class="flex-1 bg-gray-800 text-xs py-2 rounded hover:bg-gray-700 text-white"><i data-lucide="upload" class="inline w-3 h-3 mr-1"></i>Importar</button>
+                    </div>
+                    <div class="overflow-y-auto flex-grow pr-2">
+                        <ul id="admin-card-list" class="space-y-2">
+                            <!-- JS Injected List -->
+                            <li class="text-gray-500 text-sm italic">Carregando banco...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- View: Leaderboard -->
+        <section id="view-leaderboard" class="hidden flex-grow flex-col">
+            <header class="mb-8 text-center">
+                <i data-lucide="trophy" class="w-12 h-12 text-yellow-400 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]"></i>
+                <h1 class="text-3xl font-bold text-white">Ranking <span class="neon-text-cyan">Global</span></h1>
+                <p class="text-gray-400 mt-2">Os alunos mais dedicados da Ciências da Computação.</p>
+            </header>
+
+            <div class="max-w-4xl mx-auto w-full bg-cyber-panel rounded-xl border border-gray-800 overflow-hidden shadow-2xl">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-800/50 text-gray-400 text-xs uppercase tracking-wider border-b border-gray-700">
+                                <th class="p-4 w-16 text-center">Pos</th>
+                                <th class="p-4">Aluno</th>
+                                <th class="p-4 text-center">Dias Seguidos</th>
+                                <th class="p-4 text-center">Retenção</th>
+                                <th class="p-4 text-center">Cards Revisados</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-table" class="text-sm">
+                            <!-- JS Injected -->
+                            <tr><td colspan="5" class="p-8 text-center text-gray-500"><i data-lucide="loader" class="animate-spin w-5 h-5 inline mr-2"></i> Calculando ranking...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Firebase SDK (Modular ES6) & Application Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, query, where, orderBy, limit, serverTimestamp, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // =========================================================================
+        // ⚠️ ATENÇÃO ARQUITETO: CONFIGURAÇÃO DO FIREBASE (PASSO MANUAL)
+        // Substitua as chaves vazias abaixo pelas configurações do seu Firebase Console
+        // =========================================================================
+        const firebaseConfig = {
+            apiKey: "", 
+            authDomain: "",
+            projectId: "",
+            storageBucket: "",
+            messagingSenderId: "",
+            appId: ""
+        };
+
+        // Initialize Firebase
+        const fbApp = initializeApp(firebaseConfig);
+        const auth = getAuth(fbApp);
+        const db = getFirestore(fbApp);
+
+        // =========================================================================
+        // CORE APPLICATION CONTROLLER (MVC Pattern)
+        // =========================================================================
+        window.app = {
+            state: {
+                user: null,
+                isAdmin: false,
+                currentView: 'auth',
+                // Study Session Data
+                sessionCards: [],
+                currentCardIndex: 0,
+                combo: 0,
+                sessionStartTime: null,
+                cardStartTime: null
+            },
+
+            init() {
+                lucide.createIcons();
+                this.setupRichTextInterceptors();
+                
+                // Auth Listener
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        this.state.user = user;
+                        this.state.isAdmin = user.email.endsWith('@superadm.com');
+                        
+                        // Garante que o documento de status do user existe
+                        await this.ensureUserDoc(user);
+
+                        if(this.state.isAdmin) document.getElementById('nav-admin-btn').classList.remove('hidden');
+                        
+                        document.getElementById('navbar').classList.remove('hidden');
+                        this.navigate('dashboard');
+                        this.loadDashboardData();
+                    } else {
+                        this.state.user = null;
+                        this.state.isAdmin = false;
+                        document.getElementById('navbar').classList.add('hidden');
+                        document.getElementById('nav-admin-btn').classList.add('hidden');
+                        this.navigate('auth');
+                    }
+                });
+            },
+
+            navigate(viewId) {
+                const views = ['auth', 'dashboard', 'study', 'admin', 'leaderboard'];
+                views.forEach(v => {
+                    const el = document.getElementById(`view-${v}`);
+                    if(el) {
+                        v === viewId ? el.classList.remove('hidden') : el.classList.add('hidden');
+                        if (v === viewId && viewId === 'dashboard') el.classList.add('flex');
+                    }
+                });
+                this.state.currentView = viewId;
+
+                if(viewId === 'admin' && this.state.isAdmin) this.admin.loadCards();
+                if(viewId === 'leaderboard') this.loadLeaderboard();
+            },
+
+            // --- USER & AUTH ---
+            async handleAuth(type) {
+                const email = document.getElementById('auth-email').value;
+                const pwd = document.getElementById('auth-password').value;
+                const errEl = document.getElementById('auth-error');
+                
+                if(!email || !pwd) { errEl.innerText = "Preencha todos os campos."; errEl.classList.remove('hidden'); return; }
+                
+                try {
+                    if(type === 'login') {
+                        await signInWithEmailAndPassword(auth, email, pwd);
+                    } else {
+                        await createUserWithEmailAndPassword(auth, email, pwd);
+                    }
+                    errEl.classList.add('hidden');
+                } catch(e) {
+                    errEl.innerText = "Erro: " + e.message;
+                    errEl.classList.remove('hidden');
+                }
+            },
+
+            async logout() { await signOut(auth); },
+
+            async ensureUserDoc(user) {
+                const userRef = doc(db, "users", user.uid);
+                const snap = await getDoc(userRef);
+                if (!snap.exists()) {
+                    await setDoc(userRef, {
+                        email: user.email,
+                        displayName: user.email.split('@')[0],
+                        role: user.email.endsWith('@superadm.com') ? 'admin' : 'student',
+                        stats: { totalStudyTime: 0, totalCardsReviewed: 0, currentStreak: 0, retentionRate: 100, correctCount: 0 }
+                    });
+                }
+            },
+
+            // --- DASHBOARD ---
+            async loadDashboardData() {
+                // Load Stats
+                const userSnap = await getDoc(doc(db, "users", this.state.user.uid));
+                if(userSnap.exists()){
+                    const stats = userSnap.data().stats;
+                    document.getElementById('stat-streak').innerText = stats.currentStreak || 0;
+                    document.getElementById('stat-cards').innerText = stats.totalCardsReviewed || 0;
+                    document.getElementById('stat-retention').innerText = Math.round(stats.retentionRate || 0) + '%';
+                    document.getElementById('stat-time').innerText = Math.round((stats.totalStudyTime || 0) / 60) + 'm';
+                }
+
+                // Load Subjects (Simple Group By Subject from Global Flashcards)
+                // Nota: Em NoSQL gigante isso precisaria de coleções agregadas, mas faremos leitura direta para simplificar a demo.
+                const cardsSnap = await getDocs(collection(db, "flashcards"));
+                const subjects = new Set();
+                cardsSnap.forEach(doc => { subjects.add(doc.data().subject); });
+
+                const listEl = document.getElementById('subject-list');
+                listEl.innerHTML = '';
+                
+                if(subjects.size === 0) {
+                    listEl.innerHTML = '<div class="col-span-full text-center text-gray-500 py-8">Nenhuma disciplina cadastrada pelo Administrador ainda.</div>';
+                    return;
+                }
+
+                subjects.forEach(sub => {
+                    listEl.innerHTML += `
+                        <div onclick="app.study.startSession('${sub}')" class="bg-cyber-panel border border-gray-800 hover:border-cyber-cyan p-6 rounded-xl cursor-pointer transition-all hover:-translate-y-1 hover:shadow-[0_0_20px_rgba(0,243,255,0.1)] group">
+                            <div class="w-10 h-10 bg-cyber-cyan/10 rounded-lg flex items-center justify-center mb-4 group-hover:bg-cyber-cyan/20 transition-colors">
+                                <i data-lucide="book-open" class="text-cyber-cyan w-5 h-5"></i>
+                            </div>
+                            <h3 class="text-lg font-bold text-white mb-1">${sub}</h3>
+                            <p class="text-sm text-gray-500">Clique para iniciar revisão do algoritmo</p>
+                        </div>
+                    `;
+                });
+                lucide.createIcons();
+            },
+
+            // --- STUDY ENGINE (SM-2 Hybrid) ---
+            study: {
+                async startSession(subject) {
+                    app.navigate('study');
+                    document.getElementById('study-breadcrumbs').innerText = subject;
+                    app.state.combo = 0;
+                    document.getElementById('study-combo').innerText = '0';
+                    document.getElementById('study-finished').classList.add('hidden');
+                    document.getElementById('flashcard-container').classList.remove('hidden');
+                    document.getElementById('btn-reveal').classList.remove('hidden');
+                    
+                    // Fetch Global Cards for Subject
+                    const qGlobal = query(collection(db, "flashcards"), where("subject", "==", subject));
+                    const globalSnap = await getDocs(qGlobal);
+                    let globalCards = [];
+                    globalSnap.forEach(d => globalCards.push({ id: d.id, ...d.data() }));
+
+                    // Fetch User Progress
+                    const qUser = query(collection(db, "user_progress"), where("userId", "==", app.state.user.uid), where("subject", "==", subject));
+                    const userSnap = await getDocs(qUser);
+                    let progressMap = {};
+                    userSnap.forEach(d => { progressMap[d.data().flashcardId] = d.data(); });
+
+                    // Filter cards due today or new
+                    const now = new Date().getTime();
+                    app.state.sessionCards = globalCards.filter(card => {
+                        const prog = progressMap[card.id];
+                        if (!prog) return true; // New card
+                        return prog.dueDate <= now; // Due card
+                    });
+
+                    // Shuffle (Fisher-Yates) for better memory retention
+                    for (let i = app.state.sessionCards.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [app.state.sessionCards[i], app.state.sessionCards[j]] = [app.state.sessionCards[j], app.state.sessionCards[i]];
+                    }
+
+                    app.state.currentCardIndex = 0;
+                    this.renderCurrentCard();
+                },
+
+                renderCurrentCard() {
+                    const cards = app.state.sessionCards;
+                    const idx = app.state.currentCardIndex;
+                    
+                    if (idx >= cards.length) {
+                        this.endSession();
+                        return;
+                    }
+
+                    const card = cards[idx];
+                    
+                    // Reset UI
+                    const container = document.getElementById('flashcard-container');
+                    container.classList.remove('rotate-y-180');
+                    document.getElementById('btn-reveal').classList.remove('hidden');
+                    document.getElementById('study-actions').classList.add('hidden');
+                    
+                    document.getElementById('card-front').innerHTML = card.front;
+                    document.getElementById('card-back').innerHTML = card.back;
+                    
+                    // Update Progress Bar
+                    const pct = (idx / cards.length) * 100;
+                    document.getElementById('study-progress-bar').style.width = `${pct}%`;
+                    document.getElementById('study-progress-text').innerText = `${idx}/${cards.length}`;
+
+                    app.state.cardStartTime = new Date().getTime();
+                },
+
+                revealCard() {
+                    document.getElementById('flashcard-container').classList.add('rotate-y-180');
+                    document.getElementById('btn-reveal').classList.add('hidden');
+                    document.getElementById('study-actions').classList.remove('hidden');
+                    document.getElementById('study-actions').classList.add('grid');
+
+                    // Calcule SM-2 simulado para mostrar intervalos nos botões (Hard, Good, Easy)
+                    // Num app real, fazemos a leitura do DB aqui para prever. Para demo, UI fictícia.
+                    document.getElementById('time-hard').innerText = '1d';
+                    document.getElementById('time-good').innerText = '3d';
+                    document.getElementById('time-easy').innerText = '5d';
+                },
+
+                async scoreCard(quality) {
+                    const timeSpentMs = new Date().getTime() - app.state.cardStartTime;
+                    const timeSpentSec = Math.min(Math.floor(timeSpentMs / 1000), 120); // Cap 2 min
+                    
+                    const card = app.state.sessionCards[app.state.currentCardIndex];
+                    const progRef = doc(db, "user_progress", `${app.state.user.uid}_${card.id}`);
+                    const progSnap = await getDoc(progRef);
+                    
+                    let prog = progSnap.exists() ? progSnap.data() : {
+                        userId: app.state.user.uid, flashcardId: card.id, subject: card.subject,
+                        reps: 0, interval: 0, easeFactor: 2.5, dueDate: 0, state: 'New'
+                    };
+
+                    // Algoritmo SM-2 Simplificado
+                    if (quality === 0) { // Errei (Again)
+                        prog.reps = 0;
+                        prog.interval = 1; // 1 day or minutes depending on config. We use 1 day.
+                        prog.easeFactor = Math.max(1.3, prog.easeFactor - 0.2);
+                        app.state.combo = 0;
+                    } else {
+                        // Acerto
+                        app.state.combo++;
+                        if (quality === 1) { // Hard
+                            prog.interval = Math.max(1, Math.floor(prog.interval * 1.2));
+                            prog.easeFactor = Math.max(1.3, prog.easeFactor - 0.15);
+                        } else if (quality === 2) { // Good
+                            prog.reps++;
+                            prog.interval = prog.reps === 1 ? 1 : (prog.reps === 2 ? 6 : Math.floor(prog.interval * prog.easeFactor));
+                        } else if (quality === 3) { // Easy
+                            prog.reps++;
+                            prog.interval = prog.reps === 1 ? 4 : Math.floor(prog.interval * prog.easeFactor * 1.3);
+                            prog.easeFactor += 0.15;
+                        }
+                    }
+
+                    prog.dueDate = new Date().getTime() + (prog.interval * 24 * 60 * 60 * 1000);
+                    prog.lastReviewedAt = serverTimestamp();
+
+                    // Update UI Combo
+                    document.getElementById('study-combo').innerText = app.state.combo;
+
+                    // Async Save Progress (Não bloqueia a UI)
+                    setDoc(progRef, prog);
+
+                    // Update Global User Stats
+                    const userRef = doc(db, "users", app.state.user.uid);
+                    try {
+                        const uDoc = await getDoc(userRef);
+                        if(uDoc.exists()){
+                            let stats = uDoc.data().stats || {};
+                            stats.totalStudyTime = (stats.totalStudyTime || 0) + timeSpentSec;
+                            stats.totalCardsReviewed = (stats.totalCardsReviewed || 0) + 1;
+                            if(quality > 0) stats.correctCount = (stats.correctCount || 0) + 1;
+                            stats.retentionRate = (stats.correctCount / stats.totalCardsReviewed) * 100;
+                            // Simplificação de Streak (Requer lógica complexa de datas, simplificamos aqui)
+                            stats.currentStreak = 1; 
+                            updateDoc(userRef, { stats: stats });
+                        }
+                    } catch(e) { console.error("Error updating stats", e); }
+
+                    // Next Card
+                    app.state.currentCardIndex++;
+                    this.renderCurrentCard();
+                },
+
+                endSession() {
+                    document.getElementById('flashcard-container').classList.add('hidden');
+                    document.getElementById('btn-reveal').classList.add('hidden');
+                    document.getElementById('study-actions').classList.add('hidden');
+                    document.getElementById('study-finished').classList.remove('hidden');
+                    document.getElementById('study-finished').classList.add('flex');
+                    document.getElementById('study-progress-bar').style.width = `100%`;
+                }
+            },
+
+            // --- ADMIN CRUD ---
+            admin: {
+                async saveCard() {
+                    const sub = document.getElementById('admin-subject').value;
+                    const unit = document.getElementById('admin-unit').value;
+                    const topic = document.getElementById('admin-topic').value;
+                    const front = document.getElementById('admin-front').innerHTML;
+                    const back = document.getElementById('admin-back').innerHTML;
+
+                    if(!sub || !front || !back) { alert('Preencha pelo menos Matéria, Frente e Verso.'); return; }
+
+                    try {
+                        await addDoc(collection(db, "flashcards"), {
+                            subject: sub, unit: unit, topic: topic,
+                            front: front, back: back,
+                            createdAt: serverTimestamp()
+                        });
+                        
+                        document.getElementById('admin-front').innerHTML = '';
+                        document.getElementById('admin-back').innerHTML = '';
+                        const msg = document.getElementById('admin-msg');
+                        msg.classList.remove('hidden');
+                        setTimeout(() => msg.classList.add('hidden'), 3000);
+                        
+                        this.loadCards();
+                    } catch(e) { alert("Erro ao salvar: " + e.message); }
+                },
+
+                async loadCards() {
+                    const listEl = document.getElementById('admin-card-list');
+                    listEl.innerHTML = '<li class="text-gray-500 text-sm">Carregando...</li>';
+                    
+                    const q = query(collection(db, "flashcards"), limit(50));
+                    const snap = await getDocs(q);
+                    
+                    listEl.innerHTML = '';
+                    snap.forEach(doc => {
+                        const d = doc.data();
+                        listEl.innerHTML += `
+                            <li class="bg-[#0a0a0f] border border-gray-800 p-3 rounded flex justify-between items-center group">
+                                <div class="truncate mr-4">
+                                    <span class="text-xs text-cyber-purple border border-cyber-purple/30 px-1 rounded mr-2">${d.subject}</span>
+                                    <span class="text-gray-300 text-sm">${d.front.replace(/<[^>]*>?/gm, '').substring(0, 40)}...</span>
+                                </div>
+                                <button class="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" title="Deletar (Em breve)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </li>
+                        `;
+                    });
+                    lucide.createIcons();
+                }
+            },
+
+            // --- LEADERBOARD ---
+            async loadLeaderboard() {
+                const tbody = document.getElementById('leaderboard-table');
+                tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500"><i data-lucide="loader" class="animate-spin w-5 h-5 inline mr-2"></i> Calculando ranking...</td></tr>';
+                
+                try {
+                    const snap = await getDocs(collection(db, "users"));
+                    let users = [];
+                    snap.forEach(d => {
+                        const data = d.data();
+                        if(data.role !== 'admin' && data.stats) users.push(data);
+                    });
+
+                    // Sort by highest Retention * Total Cards (A metric to balance quality and quantity)
+                    users.sort((a, b) => {
+                        const scoreA = (a.stats.retentionRate || 0) * (a.stats.totalCardsReviewed || 0);
+                        const scoreB = (b.stats.retentionRate || 0) * (b.stats.totalCardsReviewed || 0);
+                        return scoreB - scoreA;
+                    });
+
+                    tbody.innerHTML = '';
+                    users.forEach((u, i) => {
+                        const medal = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : i + 1));
+                        const name = u.displayName || u.email.split('@')[0];
+                        tbody.innerHTML += `
+                            <tr class="border-b border-gray-800 hover:bg-gray-800/30 transition-colors">
+                                <td class="p-4 text-center font-bold text-lg">${medal}</td>
+                                <td class="p-4 font-medium text-white flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-cyber-purple/20 border border-cyber-purple/50 flex items-center justify-center text-xs text-cyber-purple">${name[0].toUpperCase()}</div> ${name}</td>
+                                <td class="p-4 text-center text-orange-400 font-mono">${u.stats.currentStreak || 0}</td>
+                                <td class="p-4 text-center text-cyber-cyan font-mono">${Math.round(u.stats.retentionRate || 0)}%</td>
+                                <td class="p-4 text-center text-gray-400 font-mono">${u.stats.totalCardsReviewed || 0}</td>
+                            </tr>
+                        `;
+                    });
+                    if(users.length === 0) tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-500">Nenhum estudante na base de dados ainda.</td></tr>';
+                } catch(e) { console.error(e); }
+            },
+
+            // --- UTILITIES ---
+            setupRichTextInterceptors() {
+                // Intercept Paste in ContentEditable to force Plain Text
+                document.querySelectorAll('[contenteditable]').forEach(el => {
+                    el.addEventListener('paste', function(e) {
+                        e.preventDefault();
+                        const text = (e.originalEvent || e).clipboardData.getData('text/plain');
+                        document.execCommand('insertText', false, text);
+                    });
+                });
+            }
+        };
+
+        // Boot
+        window.addEventListener('DOMContentLoaded', () => { app.init(); });
+    </script>
+</body>
+</html>
