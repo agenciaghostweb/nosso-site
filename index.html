@@ -642,6 +642,8 @@
 
             // --- ADMIN CRUD ---
             admin: {
+                allCards: [],
+
                 async saveCard() {
                     const sub = document.getElementById('admin-subject').value;
                     const unit = document.getElementById('admin-unit').value;
@@ -670,21 +672,84 @@
 
                 async loadCards() {
                     const listEl = document.getElementById('admin-card-list');
-                    listEl.innerHTML = '<li class="text-gray-500 text-sm">Carregando...</li>';
+                    listEl.innerHTML = '<li class="text-gray-500 text-sm">A carregar banco de dados...</li>';
                     
-                    const q = query(collection(db, "flashcards"), limit(50));
-                    const snap = await getDocs(q);
+                    try {
+                        // Busca sem orderBy para evitar erros de índice manual no Firebase
+                        const q = query(collection(db, "flashcards")); 
+                        const snap = await getDocs(q);
+                        
+                        this.allCards = [];
+                        const subjects = new Set();
+                        
+                        snap.forEach(doc => {
+                            const data = doc.data();
+                            this.allCards.push({ id: doc.id, ...data });
+                            if(data.subject) subjects.add(data.subject);
+                        });
+
+                        // Ordena por mais recente localmente
+                        this.allCards.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+                        
+                        // Popula o dropdown de filtro dinamicamente
+                        const selectEl = document.getElementById('admin-filter-subject');
+                        const currentVal = selectEl.value;
+                        selectEl.innerHTML = '<option value="">Todas as Matérias</option>';
+                        Array.from(subjects).sort().forEach(sub => {
+                            selectEl.innerHTML += `<option value="${sub}" ${currentVal === sub ? 'selected' : ''}>${sub}</option>`;
+                        });
+                        
+                        this.filterCards();
+                    } catch(e) {
+                        console.error("Erro ao carregar cards do Admin:", e);
+                        listEl.innerHTML = '<li class="text-red-400 text-sm">Erro ao carregar dados. Verifique as permissões de rede.</li>';
+                    }
+                },
+
+                filterCards() {
+                    const searchTerm = document.getElementById('admin-search').value.toLowerCase();
+                    const filterSubject = document.getElementById('admin-filter-subject').value;
                     
+                    const filtered = this.allCards.filter(card => {
+                        const frontText = (card.front || '').replace(/<[^>]*>?/gm, '').toLowerCase();
+                        const backText = (card.back || '').replace(/<[^>]*>?/gm, '').toLowerCase();
+                        const topicText = (card.topic || '').toLowerCase();
+                        
+                        const matchSearch = frontText.includes(searchTerm) || backText.includes(searchTerm) || topicText.includes(searchTerm);
+                        const matchSubject = filterSubject === "" || card.subject === filterSubject;
+                        
+                        return matchSearch && matchSubject;
+                    });
+                    
+                    this.renderCardList(filtered);
+                },
+
+                renderCardList(cards) {
+                    const listEl = document.getElementById('admin-card-list');
+                    const countEl = document.getElementById('admin-card-count');
+                    
+                    countEl.innerText = `${cards.length} cards encontrados`;
                     listEl.innerHTML = '';
-                    snap.forEach(doc => {
-                        const d = doc.data();
+                    
+                    if (cards.length === 0) {
+                        listEl.innerHTML = '<li class="text-gray-500 text-sm italic">Nenhum card encontrado.</li>';
+                        return;
+                    }
+
+                    cards.forEach(d => {
+                        const cleanFront = d.front.replace(/<[^>]*>?/gm, '');
                         listEl.innerHTML += `
                             <li class="bg-[#0a0a0f] border border-gray-800 p-3 rounded flex justify-between items-center group">
-                                <div class="truncate mr-4">
-                                    <span class="text-xs text-cyber-purple border border-cyber-purple/30 px-1 rounded mr-2">${d.subject}</span>
-                                    <span class="text-gray-300 text-sm">${d.front.replace(/<[^>]*>?/gm, '').substring(0, 40)}...</span>
+                                <div class="truncate mr-4 flex-grow">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-[10px] text-cyber-purple border border-cyber-purple/30 px-1.5 py-0.5 rounded uppercase tracking-wider">${d.subject}</span>
+                                        <span class="text-[10px] text-gray-500">${d.unit || 'Geral'} > ${d.topic || 'Geral'}</span>
+                                    </div>
+                                    <span class="text-gray-300 text-sm block truncate w-full" title="${cleanFront}">
+                                        ${cleanFront.substring(0, 60)}...
+                                    </span>
                                 </div>
-                                <button class="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" title="Deletar (Em breve)"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                <button onclick="alert('Função de exclusão em desenvolvimento para garantir segurança contra deleções acidentais.')" class="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded" title="Deletar"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                             </li>
                         `;
                     });
